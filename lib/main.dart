@@ -1,11 +1,15 @@
 import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'screens/profile_screen.dart';
-import 'screens/friends_screen.dart';
+import 'screens/discover_screen.dart';
+import 'screens/chat_screen.dart';
+import 'screens/groups_screen.dart';
+import 'screens/event_screen.dart';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_options.dart';
 
@@ -33,58 +37,298 @@ class StudentConnectApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  Future<void> logout(BuildContext context) async {
-    final AuthService authService = AuthService();
-
-    await authService.logout();
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('StudentConnect')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ProfileScreen()),
-                );
-              },
-              child: const Text('My Profile'),
-            ),
 
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FriendsScreen(),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('events')
+            .orderBy('dateTime')
+            .snapshots(),
+
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error loading events:\n'
+                '${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+          final events = snapshot.data?.docs ?? [];
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
+
+            children: [
+              const Text(
+                'Welcome to StudentConnect!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DiscoverScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Discover Students'),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GroupsScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Groups'),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('My Profile'),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EventScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.event),
+                  label: const Text('Create Event'),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              const Text(
+                'Upcoming Events',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 15),
+
+              if (events.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      'No upcoming events yet.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+
+              ...events.map((event) {
+                final data = event.data() as Map<String, dynamic>;
+
+                final title = data['title'] ?? 'Untitled Event';
+
+                final description = data['description'] ?? '';
+
+                final location = data['location'] ?? 'Unknown location';
+
+                final creatorName = data['creatorName'] ?? 'Student';
+
+                final timestamp = data['dateTime'] as Timestamp?;
+
+                String dateText = 'Date not available';
+
+                if (timestamp != null) {
+                  final date = timestamp.toDate();
+
+                  dateText =
+                      '${date.day}/'
+                      '${date.month}/'
+                      '${date.year} '
+                      '${date.hour.toString().padLeft(2, '0')}:'
+                      '${date.minute.toString().padLeft(2, '0')}';
+                }
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 15),
+
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.event, size: 30),
+
+                            const SizedBox(width: 10),
+
+                            Expanded(
+                              child: Text(
+                                title.toString(),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+
+                            // DELETE BUTTON - ONLY EVENT CREATOR
+                            if (FirebaseAuth.instance.currentUser?.uid ==
+                                data['createdBy'])
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                tooltip: 'Delete event',
+                                onPressed: () async {
+                                  final shouldDelete = await showDialog<bool>(
+                                    context: context,
+                                    builder: (dialogContext) {
+                                      return AlertDialog(
+                                        title: const Text('Delete Event'),
+                                        content: const Text(
+                                          'Are you sure you want to delete this event?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.of(dialogContext)
+                                                  .pop(false);
+                                            },
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              Navigator.of(dialogContext)
+                                                  .pop(true);
+                                            },
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+
+                                  if (shouldDelete != true) return;
+
+                                  try {
+                                    await FirebaseFirestore.instance
+                                        .collection('events')
+                                        .doc(event.id)
+                                        .delete();
+
+                                    if (!context.mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Event deleted'),
+                                      ),
+                                    );
+                                  } on FirebaseException catch (e) {
+                                    if (!context.mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not delete event: ${e.message}',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Text('Date & Time: $dateText'),
+
+                        const SizedBox(height: 6),
+
+                        Text('Location: ${location.toString()}'),
+
+                        const SizedBox(height: 6),
+
+                        Text('Created by: ${creatorName.toString()}'),
+
+                        if (description.toString().isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(description.toString()),
+                        ],
+                      ],
+                    ),
                   ),
                 );
-              },
-              child: const Text('Find Students'),
-            ),
+              }),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: () {
-                logout(context);
-              },
-              child: const Text('Logout'),
-            ),
-          ],
-        ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await AuthService().signOut();
+
+                    if (!context.mounted) return;
+
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  child: const Text('Logout'),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -134,81 +378,213 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.people, size: 80, color: Colors.blue),
 
-              const SizedBox(height: 20),
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('events')
+              .orderBy('dateTime')
+              .snapshots(),
 
-              const Text(
-                'StudentConnect',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Connect with students around you',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-
-              const SizedBox(height: 40),
-
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _buildPage(
+                context,
+                const Text(
+                  'Events could not be loaded.',
+                  style: TextStyle(color: Colors.red),
                 ),
-              ),
+              );
+            }
 
-              const SizedBox(height: 20),
+            final events = snapshot.data?.docs ?? [];
 
-              TextField(
-                obscureText: true,
-                controller: passwordController,
+            return _buildPage(
+              context,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Upcoming Events',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
 
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-              ),
+                  const SizedBox(height: 10),
 
-              const SizedBox(height: 30),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const Center(child: CircularProgressIndicator()),
 
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: loading ? null : login,
-                  child: loading
-                      ? const CircularProgressIndicator()
-                      : const Text('Login', style: TextStyle(fontSize: 18)),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegisterScreen(),
+                  if (snapshot.connectionState != ConnectionState.waiting &&
+                      events.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: Text('No upcoming events yet.')),
+                      ),
                     ),
-                  );
-                },
-                child: const Text('Create an account'),
+
+                  ...events.map((event) {
+                    final data = event.data() as Map<String, dynamic>;
+
+                    final title = data['title'] ?? 'Untitled Event';
+
+                    final description = data['description'] ?? '';
+
+                    final location = data['location'] ?? 'Unknown location';
+
+                    final creatorName = data['creatorName'] ?? 'Student';
+
+                    final timestamp = data['dateTime'] as Timestamp?;
+
+                    String dateText = 'Date not available';
+
+                    if (timestamp != null) {
+                      final date = timestamp.toDate();
+
+                      dateText =
+                          '${date.day}/'
+                          '${date.month}/'
+                          '${date.year} '
+                          '${date.hour.toString().padLeft(2, '0')}:'
+                          '${date.minute.toString().padLeft(2, '0')}';
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 15),
+
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              title.toString(),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            Text('Date & Time: $dateText'),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              'Location: '
+                              '${location.toString()}',
+                            ),
+
+                            const SizedBox(height: 5),
+
+                            Text(
+                              'Created by: '
+                              '${creatorName.toString()}',
+                            ),
+
+                            if (description.toString().isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(description.toString()),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _buildPage(BuildContext context, Widget eventsSection) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(30),
+
+      child: Column(
+        children: [
+          const Icon(Icons.people, size: 80, color: Colors.blue),
+
+          const SizedBox(height: 20),
+
+          const Text(
+            'StudentConnect',
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 10),
+
+          const Text(
+            'Connect with students around you',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+
+          const SizedBox(height: 30),
+
+          TextField(
+            controller: emailController,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.email),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          TextField(
+            controller: passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Password',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.lock),
+            ),
+          ),
+
+          const SizedBox(height: 25),
+
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+
+            child: ElevatedButton(
+              onPressed: loading ? null : login,
+
+              child: loading
+                  ? const CircularProgressIndicator()
+                  : const Text('Login', style: TextStyle(fontSize: 18)),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RegisterScreen()),
+              );
+            },
+
+            child: const Text('Create an account'),
+          ),
+
+          const SizedBox(height: 30),
+
+          const Divider(),
+
+          const SizedBox(height: 20),
+
+          eventsSection,
+        ],
       ),
     );
   }
@@ -229,16 +605,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
   final universityController = TextEditingController();
+  final cityController = TextEditingController();
   final countryController = TextEditingController();
+  final interestsController = TextEditingController();
 
   bool loading = false;
+  String preferredLanguage = 'English';
 
   Future<void> register() async {
     if (passwordController.text != confirmPasswordController.text) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
-
       return;
     }
 
@@ -246,33 +624,81 @@ class _RegisterScreenState extends State<RegisterScreen> {
       loading = true;
     });
 
-    final user = await _authService.register(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-    );
+    try {
+      final user = await _authService.register(
+        emailController.text.trim(),
+        passwordController.text.trim(),
+      );
 
-    setState(() {
-      loading = false;
-    });
+      if (user == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Registration failed')));
+        }
+        return;
+      }
 
-    if (user != null) {
-      await _databaseService.createUserProfile(user.uid, {
+      final interests = interestsController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final profileData = {
         'name': nameController.text.trim(),
         'email': emailController.text.trim(),
         'university': universityController.text.trim(),
+        'city': cityController.text.trim(),
         'country': countryController.text.trim(),
-        'languages': [],
-        'interests': [],
+        'preferredLanguage': preferredLanguage,
+        'languages': [preferredLanguage],
+        'interests': interests,
         'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      await _databaseService.createUserProfile(user.uid, profileData);
+
+      await _databaseService.createPublicProfile(user.uid, {
+        'name': nameController.text.trim(),
+        'university': universityController.text.trim(),
+        'city': cityController.text.trim(),
+        'country': countryController.text.trim(),
+        'preferredLanguage': preferredLanguage,
+        'languages': [preferredLanguage],
+        'interests': interests,
       });
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Account created!')));
 
       Navigator.pop(context);
-    } else {
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore error: ${e.code}');
+      debugPrint('Firestore message: ${e.message}');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Firebase error: ${e.code}\n${e.message ?? ''}'),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Registration error: $e');
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Registration failed')));
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
     }
   }
 
@@ -329,12 +755,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 20),
 
               TextField(
+                controller: cityController,
+                decoration: const InputDecoration(
+                  labelText: 'City',
+                  hintText: 'Example: Poznań',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_city),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              TextField(
                 controller: countryController,
                 decoration: const InputDecoration(
-                  labelText: 'Country',
+                  labelText: 'Country of Origin',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.public),
                 ),
+              ),
+
+              const SizedBox(height: 20),
+
+              TextField(
+                controller: interestsController,
+                decoration: const InputDecoration(
+                  labelText: 'Interests',
+                  hintText: 'Example: Football, Music, Programming',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.favorite),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              DropdownButtonFormField<String>(
+                value: preferredLanguage,
+                decoration: const InputDecoration(
+                  labelText: 'Preferred Language',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.language),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'English', child: Text('English')),
+                  DropdownMenuItem(value: 'Polish', child: Text('Polish')),
+                  DropdownMenuItem(value: 'Swahili', child: Text('Swahili')),
+                  DropdownMenuItem(value: 'French', child: Text('French')),
+                  DropdownMenuItem(value: 'Spanish', child: Text('Spanish')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      preferredLanguage = value;
+                    });
+                  }
+                },
               ),
 
               const SizedBox(height: 20),

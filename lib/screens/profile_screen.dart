@@ -15,8 +15,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final nameController = TextEditingController();
   final universityController = TextEditingController();
+  final cityController = TextEditingController();
   final countryController = TextEditingController();
-
+  String preferredLanguage = 'English';
   List<String> languages = [];
   List<String> interests = [];
 
@@ -29,68 +30,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
     loadProfile();
   }
 
+  @override
+  void dispose() {
+    nameController.dispose();
+    universityController.dispose();
+    cityController.dispose();
+    countryController.dispose();
+
+    super.dispose();
+  }
+
   Future<void> loadProfile() async {
     final User? user = _auth.currentUser;
 
     if (user == null) {
+      if (!mounted) return;
+
       setState(() {
         loading = false;
       });
+
       return;
     }
 
-    final document = await _firestore.collection('users').doc(user.uid).get();
+    try {
+      final document = await _firestore.collection('users').doc(user.uid).get();
 
-    if (document.exists) {
-      final data = document.data()!;
+      if (!mounted) return;
 
-      nameController.text = data['name'] ?? '';
-      universityController.text = data['university'] ?? '';
-      countryController.text = data['country'] ?? '';
+      if (document.exists) {
+        final data = document.data()!;
 
-      languages = List<String>.from(data['languages'] ?? []);
+        nameController.text = data['name']?.toString() ?? '';
 
-      interests = List<String>.from(data['interests'] ?? []);
+        universityController.text = data['university']?.toString() ?? '';
+
+        cityController.text = data['city']?.toString() ?? '';
+
+        countryController.text = data['country']?.toString() ?? '';
+
+        preferredLanguage = data['preferredLanguage']?.toString() ?? 'English';
+
+        languages = List<String>.from(data['languages'] ?? []);
+
+        interests = List<String>.from(data['interests'] ?? []);
+      }
+
+      setState(() {
+        loading = false;
+      });
+    } catch (e) {
+      debugPrint('Profile loading error: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
     }
-
-    setState(() {
-      loading = false;
-    });
   }
 
   Future<void> addLanguage() async {
-    final languageController = TextEditingController();
-
-    await showDialog(
+    final language = await showDialog<String>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        final controller = TextEditingController();
+
         return AlertDialog(
           title: const Text('Add Language'),
+
           content: TextField(
-            controller: languageController,
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
             decoration: const InputDecoration(
               labelText: 'Language',
               hintText: 'Example: English',
             ),
           ),
+
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.of(dialogContext).pop();
               },
               child: const Text('Cancel'),
             ),
+
             ElevatedButton(
               onPressed: () {
-                final language = languageController.text.trim();
+                final value = controller.text.trim();
 
-                if (language.isNotEmpty) {
-                  setState(() {
-                    languages.add(language);
-                  });
+                if (value.isNotEmpty) {
+                  Navigator.of(dialogContext).pop(value);
                 }
-
-                Navigator.pop(context);
               },
               child: const Text('Add'),
             ),
@@ -99,42 +132,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    languageController.dispose();
+    if (!mounted) return;
+
+    if (language != null && language.isNotEmpty) {
+      setState(() {
+        languages.add(language);
+      });
+    }
   }
 
   Future<void> addInterest() async {
-    final interestController = TextEditingController();
-
-    await showDialog(
+    final interest = await showDialog<String>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        final controller = TextEditingController();
+
         return AlertDialog(
           title: const Text('Add Interest'),
+
           content: TextField(
-            controller: interestController,
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
             decoration: const InputDecoration(
               labelText: 'Interest',
               hintText: 'Example: Programming',
             ),
           ),
+
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.of(dialogContext).pop();
               },
               child: const Text('Cancel'),
             ),
+
             ElevatedButton(
               onPressed: () {
-                final interest = interestController.text.trim();
+                final value = controller.text.trim();
 
-                if (interest.isNotEmpty) {
-                  setState(() {
-                    interests.add(interest);
-                  });
+                if (value.isNotEmpty) {
+                  Navigator.of(dialogContext).pop(value);
                 }
-
-                Navigator.pop(context);
               },
               child: const Text('Add'),
             ),
@@ -143,7 +183,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    interestController.dispose();
+    if (!mounted) return;
+
+    if (interest != null && interest.isNotEmpty) {
+      setState(() {
+        interests.add(interest);
+      });
+    }
   }
 
   Future<void> saveProfile() async {
@@ -160,7 +206,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _firestore.collection('users').doc(user.uid).update({
       'name': nameController.text.trim(),
       'university': universityController.text.trim(),
+      'city': cityController.text.trim(),
       'country': countryController.text.trim(),
+      'preferredLanguage': preferredLanguage,
       'languages': languages,
       'interests': interests,
     });
@@ -219,12 +267,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 20),
 
             TextField(
+              controller: cityController,
+              decoration: const InputDecoration(
+                labelText: 'City',
+                hintText: 'Example: Poznań',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_city),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            TextField(
               controller: countryController,
               decoration: const InputDecoration(
-                labelText: 'Country',
+                labelText: 'Country of Origin',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.public),
               ),
+            ),
+
+            const SizedBox(height: 20),
+
+            DropdownButtonFormField<String>(
+              initialValue: preferredLanguage,
+              decoration: const InputDecoration(
+                labelText: 'Preferred Language',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.language),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'English', child: Text('English')),
+                DropdownMenuItem(value: 'Polish', child: Text('Polish')),
+                DropdownMenuItem(value: 'French', child: Text('French')),
+                DropdownMenuItem(value: 'Spanish', child: Text('Spanish')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    preferredLanguage = value;
+                  });
+                }
+              },
             ),
 
             const SizedBox(height: 30),
