@@ -37,6 +37,23 @@ class StudentConnectApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  Future<void> setAttendance(String eventId, String status) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('attendance')
+        .doc(user.uid)
+        .set({
+          'status': status,
+          'userId': user.uid,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,6 +93,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
+              // DISCOVER STUDENTS
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -93,6 +111,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 10),
 
+              // GROUPS
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -110,6 +129,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 10),
 
+              // PROFILE
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -127,6 +147,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 10),
 
+              // CREATE EVENT
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -152,6 +173,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 15),
 
+              // NO EVENTS
               if (events.isEmpty)
                 const Card(
                   child: Padding(
@@ -163,6 +185,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
 
+              // EVENT LIST
               ...events.map((event) {
                 final data = event.data() as Map<String, dynamic>;
 
@@ -197,7 +220,9 @@ class HomeScreen extends StatelessWidget {
 
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+
                       children: [
+                        // EVENT TITLE + DELETE BUTTON
                         Row(
                           children: [
                             const Icon(Icons.event, size: 30),
@@ -214,7 +239,8 @@ class HomeScreen extends StatelessWidget {
                               ),
                             ),
 
-                            // DELETE BUTTON - ONLY EVENT CREATOR
+                            // DELETE BUTTON
+                            // ONLY EVENT CREATOR CAN SEE IT
                             if (FirebaseAuth.instance.currentUser?.uid ==
                                 data['createdBy'])
                               IconButton(
@@ -223,15 +249,18 @@ class HomeScreen extends StatelessWidget {
                                   color: Colors.red,
                                 ),
                                 tooltip: 'Delete event',
+
                                 onPressed: () async {
                                   final shouldDelete = await showDialog<bool>(
                                     context: context,
                                     builder: (dialogContext) {
                                       return AlertDialog(
                                         title: const Text('Delete Event'),
+
                                         content: const Text(
                                           'Are you sure you want to delete this event?',
                                         ),
+
                                         actions: [
                                           TextButton(
                                             onPressed: () {
@@ -240,6 +269,7 @@ class HomeScreen extends StatelessWidget {
                                             },
                                             child: const Text('Cancel'),
                                           ),
+
                                           ElevatedButton(
                                             onPressed: () {
                                               Navigator.of(dialogContext)
@@ -252,7 +282,9 @@ class HomeScreen extends StatelessWidget {
                                     },
                                   );
 
-                                  if (shouldDelete != true) return;
+                                  if (shouldDelete != true) {
+                                    return;
+                                  }
 
                                   try {
                                     await FirebaseFirestore.instance
@@ -260,7 +292,9 @@ class HomeScreen extends StatelessWidget {
                                         .doc(event.id)
                                         .delete();
 
-                                    if (!context.mounted) return;
+                                    if (!context.mounted) {
+                                      return;
+                                    }
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -268,7 +302,9 @@ class HomeScreen extends StatelessWidget {
                                       ),
                                     );
                                   } on FirebaseException catch (e) {
-                                    if (!context.mounted) return;
+                                    if (!context.mounted) {
+                                      return;
+                                    }
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -297,8 +333,142 @@ class HomeScreen extends StatelessWidget {
 
                         if (description.toString().isNotEmpty) ...[
                           const SizedBox(height: 10),
+
                           Text(description.toString()),
                         ],
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('events')
+                              .doc(event.id)
+                              .collection('attendance')
+                              .where('status', isEqualTo: 'attending')
+                              .snapshots(),
+                          builder: (context, attendanceSnapshot) {
+                            if (attendanceSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Text('Loading attendance...');
+                            }
+
+                            if (attendanceSnapshot.hasError) {
+                              return const Text('Unable to load attendance.');
+                            }
+
+                            final attendingCount =
+                                attendanceSnapshot.data?.docs.length ?? 0;
+
+                            final currentUserId =
+                                FirebaseAuth.instance.currentUser?.uid;
+
+                            final creatorId = data['createdBy'];
+
+                            if (currentUserId != creatorId) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.people, size: 22),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '$attendingCount '
+                                    '${attendingCount == 1 ? 'person' : 'people'} '
+                                    'will attend',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        // ATTENDANCE BUTTONS
+                        const SizedBox(height: 15),
+
+                        Row(
+                          children: [
+                            // ATTEND
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  try {
+                                    await setAttendance(event.id, 'attending');
+
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'You are attending this event.',
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not save attendance: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.check),
+                                label: const Text('Attend'),
+                              ),
+                            ),
+
+                            const SizedBox(width: 10),
+
+                            // NOT ATTEND
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  try {
+                                    await setAttendance(
+                                      event.id,
+                                      'not_attending',
+                                    );
+
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'You are not attending this event.',
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not save attendance: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.close),
+                                label: const Text('Not Attend'),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -307,6 +477,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
+              // LOGOUT
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
