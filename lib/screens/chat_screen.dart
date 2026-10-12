@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/analytics_service.dart';
+
 class ChatScreen extends StatefulWidget {
   final String otherUserId;
   final String otherUserName;
@@ -25,35 +27,46 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> sendMessage() async {
     final currentUser = _auth.currentUser;
-
-    if (currentUser == null) {
-      return;
-    }
+    if (currentUser == null) return;
 
     final message = messageController.text.trim();
+    if (message.isEmpty) return;
 
-    if (message.isEmpty) {
-      return;
-    }
+    // Get the sender's name from Firestore.
+    final userDoc = await _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
 
-    // Create a conversation ID using both user IDs.
+    final senderName = userDoc.data()?['name'] ?? 'Unknown user';
+
     final ids = [currentUser.uid, widget.otherUserId];
-
     ids.sort();
 
     final conversationId = '${ids[0]}_${ids[1]}';
 
+    // Save the message.
     await _firestore
         .collection('conversations')
         .doc(conversationId)
         .collection('messages')
         .add({
           'senderId': currentUser.uid,
+          'receiverId': widget.otherUserId,
+          'senderName': senderName,
           'text': message,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
+    await AnalyticsService.logMessageSent();
+
     messageController.clear();
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -67,14 +80,12 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final ids = [currentUser.uid, widget.otherUserId];
-
     ids.sort();
 
     final conversationId = '${ids[0]}_${ids[1]}';
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.otherUserName)),
-
       body: Column(
         children: [
           Expanded(
@@ -83,9 +94,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   .collection('conversations')
                   .doc(conversationId)
                   .collection('messages')
-                  .orderBy('createdAt', descending: false)
+                  .orderBy('createdAt')
                   .snapshots(),
-
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -115,16 +125,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-
                   itemCount: messages.length,
-
                   itemBuilder: (context, index) {
                     final message =
                         messages[index].data() as Map<String, dynamic>;
 
                     final senderId = message['senderId'];
-
                     final text = message['text'] ?? '';
+
+                    // Name saved with the message.
+                    final senderName =
+                        message['senderName'] ??
+                        (senderId == currentUser.uid
+                            ? 'You'
+                            : widget.otherUserName);
 
                     final isMe = senderId == currentUser.uid;
 
@@ -132,26 +146,57 @@ class _ChatScreenState extends State<ChatScreen> {
                       alignment: isMe
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
-
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 15,
                           vertical: 10,
                         ),
-
                         decoration: BoxDecoration(
                           color: isMe ? Colors.blue : Colors.grey[300],
                           borderRadius: BorderRadius.circular(15),
                         ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Small sender name above the text.
+                            Text(
+                              senderName.toString(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
 
-                        child: Text(
-                          text.toString(),
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black,
-                            fontSize: 16,
-                          ),
+                            // Message text.
+                            Text(
+                              text.toString(),
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.black,
+                                fontSize: 16,
+                              ),
+                            ),
+                            // Date and time sent.
+                            Text(
+                              message['createdAt'] is Timestamp
+                                  ? (message['createdAt'] as Timestamp)
+                                        .toDate()
+                                        .toLocal()
+                                        .toString()
+                                        .substring(0, 16)
+                                  : 'Sending...',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -161,30 +206,43 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Message input
-          Padding(
-            padding: const EdgeInsets.all(10),
-
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
+          // Message input.
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: messageController,
+                      minLines: 1,
+                      maxLines: 4,
+                      keyboardType: TextInputType.multiline,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'Type a message...',
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-
-                const SizedBox(width: 10),
-
-                IconButton(
-                  onPressed: sendMessage,
-                  icon: const Icon(Icons.send),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: sendMessage,
+                    icon: const Icon(Icons.send),
+                    tooltip: 'Send message',
+                  ),
+                ],
+              ),
             ),
           ),
         ],

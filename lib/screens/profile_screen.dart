@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/analytics_service.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -203,23 +205,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
       saving = true;
     });
 
-    await _firestore.collection('users').doc(user.uid).update({
-      'name': nameController.text.trim(),
-      'university': universityController.text.trim(),
-      'city': cityController.text.trim(),
-      'country': countryController.text.trim(),
-      'preferredLanguage': preferredLanguage,
-      'languages': languages,
-      'interests': interests,
-    });
+    try {
+      await _firestore.collection('users').doc(user.uid).update({
+        'name': nameController.text.trim(),
+        'university': universityController.text.trim(),
+        'city': cityController.text.trim(),
+        'country': countryController.text.trim(),
+        'preferredLanguage': preferredLanguage,
+        'languages': languages,
+        'interests': interests,
+      });
 
-    setState(() {
-      saving = false;
-    });
+      await AnalyticsService.logProfileCompleted();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated successfully')),
-    );
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        saving = false;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+    }
   }
 
   @override

@@ -217,6 +217,7 @@ class SameCityStudentsScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: Text('Students in $city')),
 
       body: Column(
@@ -293,29 +294,28 @@ class SameCityStudentsScreen extends StatelessWidget {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(16),
-
-            child: SizedBox(
-              width: double.infinity,
-              height: 55,
-
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => GroupChatScreen(
-                        groupId: 'city_$city',
-                        groupName: 'Students in $city',
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupChatScreen(
+                          groupId: 'city_$city',
+                          groupName: 'Students in $city',
+                        ),
                       ),
-                    ),
-                  );
-                },
-
-                icon: const Icon(Icons.group),
-
-                label: const Text('Open City Group Chat'),
+                    );
+                  },
+                  icon: const Icon(Icons.group),
+                  label: const Text('Open City Group Chat'),
+                ),
               ),
             ),
           ),
@@ -345,6 +345,7 @@ class SameCountryStudentsScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: Text('Students from $country')),
 
       body: Column(
@@ -421,29 +422,28 @@ class SameCountryStudentsScreen extends StatelessWidget {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(16),
-
-            child: SizedBox(
-              width: double.infinity,
-              height: 55,
-
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => GroupChatScreen(
-                        groupId: 'country_$country',
-                        groupName: 'Students from $country',
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupChatScreen(
+                          groupId: 'country_$country',
+                          groupName: 'Students in $country',
+                        ),
                       ),
-                    ),
-                  );
-                },
-
-                icon: const Icon(Icons.group),
-
-                label: const Text('Open Country Group Chat'),
+                    );
+                  },
+                  icon: const Icon(Icons.group),
+                  label: const Text('Open Country Group Chat'),
+                ),
               ),
             ),
           ),
@@ -473,6 +473,7 @@ class SameInterestStudentsScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('Students with Your Interests')),
 
       body: StreamBuilder<QuerySnapshot>(
@@ -559,31 +560,28 @@ class SameInterestStudentsScreen extends StatelessWidget {
                 ),
               ),
 
-              Padding(
-                padding: const EdgeInsets.all(16),
-
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 55,
-
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      final interest = interests.first;
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GroupChatScreen(
-                            groupId: 'interest_$interest',
-                            groupName: 'Interest: $interest',
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GroupChatScreen(
+                              groupId: 'interest_${interests.first}',
+                              groupName: 'Interest: ${interests.first}',
+                            ),
                           ),
-                        ),
-                      );
-                    },
-
-                    icon: const Icon(Icons.group),
-
-                    label: const Text('Open Interest Group Chat'),
+                        );
+                      },
+                      icon: const Icon(Icons.group),
+                      label: const Text('Open Interest Group Chat'),
+                    ),
                   ),
                 ),
               ),

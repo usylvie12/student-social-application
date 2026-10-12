@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/analytics_service.dart';
+
 class EventScreen extends StatefulWidget {
   const EventScreen({super.key});
 
@@ -109,6 +111,7 @@ class _EventScreenState extends State<EventScreen> {
         'creatorName': creatorName,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await AnalyticsService.logEventCreated();
 
       titleController.clear();
       descriptionController.clear();

@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'analytics_service.dart';
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
   }
@@ -26,6 +29,9 @@ class AuthService {
         email: email,
         password: password,
       );
+
+      // Record successful login in Firebase Analytics
+      await AnalyticsService.logLogin();
 
       return result.user;
     } catch (e) {

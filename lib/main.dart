@@ -5,18 +5,24 @@ import 'screens/discover_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/groups_screen.dart';
 import 'screens/event_screen.dart';
+import 'services/analytics_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import 'firebase_options.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+
+  await FirebaseAnalytics.instance.logLogin(loginMethod: 'email');
 
   runApp(const StudentConnectApp());
 }
@@ -52,6 +58,10 @@ class HomeScreen extends StatelessWidget {
           'userId': user.uid,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+    if (status == 'attending') {
+      await AnalyticsService.logEventJoined();
+    }
   }
 
   @override
@@ -620,47 +630,48 @@ class _LoginScreenState extends State<LoginScreen> {
                           '${date.minute.toString().padLeft(2, '0')}';
                     }
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 15),
+                    return SizedBox(
+                      width: double.infinity,
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 15),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
 
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Text(
-                              title.toString(),
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                            children: [
+                              Text(
+                                title.toString(),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
 
-                            const SizedBox(height: 10),
+                              const SizedBox(height: 10),
 
-                            Text('Date & Time: $dateText'),
+                              Text('Date & Time: $dateText'),
 
-                            const SizedBox(height: 5),
+                              const SizedBox(height: 5),
 
-                            Text(
-                              'Location: '
-                              '${location.toString()}',
-                            ),
+                              Text(
+                                'Location: '
+                                '${location.toString()}',
+                              ),
 
-                            const SizedBox(height: 5),
+                              const SizedBox(height: 5),
 
-                            Text(
-                              'Created by: '
-                              '${creatorName.toString()}',
-                            ),
+                              Text(
+                                'Created by: '
+                                '${creatorName.toString()}',
+                              ),
 
-                            if (description.toString().isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(description.toString()),
+                              if (description.toString().isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(description.toString()),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     );

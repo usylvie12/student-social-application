@@ -25,28 +25,60 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   Future<void> sendMessage() async {
     final user = _auth.currentUser;
+    if (user == null) return;
 
-    if (user == null) {
-      return;
+    final text = messageController.text.trim();
+    if (text.isEmpty) return;
+
+    try {
+      // First, look for the name in publicProfiles.
+      final publicProfile = await _firestore
+          .collection('publicProfiles')
+          .doc(user.uid)
+          .get();
+
+      String senderName =
+          publicProfile.data()?['name']?.toString().trim() ?? '';
+
+      // If the name is missing, check users.
+      if (senderName.isEmpty) {
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        senderName = userDoc.data()?['name']?.toString().trim() ?? '';
+      }
+
+      // Final fallback.
+      if (senderName.isEmpty) {
+        senderName = user.email ?? 'Unknown user';
+      }
+
+      await _firestore
+          .collection('groupConversations')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+            'senderId': user.uid,
+            'senderName': senderName,
+            'text': text,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      messageController.clear();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not send message: $e')));
     }
+  }
 
-    final message = messageController.text.trim();
-
-    if (message.isEmpty) {
-      return;
-    }
-
-    await _firestore
-        .collection('groupConversations')
-        .doc(widget.groupId)
-        .collection('messages')
-        .add({
-          'senderId': user.uid,
-          'text': message,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-    messageController.clear();
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -60,8 +92,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: Text(widget.groupName)),
-
       body: Column(
         children: [
           Expanded(
@@ -70,9 +102,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   .collection('groupConversations')
                   .doc(widget.groupId)
                   .collection('messages')
-                  .orderBy('createdAt', descending: false)
+                  .orderBy('createdAt')
                   .snapshots(),
-
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -102,44 +133,83 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-
                   itemCount: messages.length,
-
                   itemBuilder: (context, index) {
                     final message =
                         messages[index].data() as Map<String, dynamic>;
 
                     final senderId = message['senderId'];
-
                     final text = message['text'] ?? '';
 
+                    final senderName = message['senderName']?.toString().trim();
+
+                    final displayName =
+                        (senderName != null && senderName.isNotEmpty)
+                        ? (senderId == user.uid ? 'You' : senderName)
+                        : (senderId == user.uid ? 'You' : 'Group member');
+
                     final isMe = senderId == user.uid;
+
+                    final createdAt = message['createdAt'];
+
+                    final dateText = createdAt is Timestamp
+                        ? createdAt.toDate().toLocal().toString().substring(
+                            0,
+                            16,
+                          )
+                        : 'Sending...';
 
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
-
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.78,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 15,
                           vertical: 10,
                         ),
-
                         decoration: BoxDecoration(
                           color: isMe ? Colors.blue : Colors.grey[300],
-
                           borderRadius: BorderRadius.circular(15),
                         ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Sender name.
+                            Text(
+                              displayName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
 
-                        child: Text(
-                          text.toString(),
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black,
-                            fontSize: 16,
-                          ),
+                            // Message content.
+                            Text(
+                              text.toString(),
+                              style: TextStyle(
+                                color: isMe ? Colors.white : Colors.black,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+
+                            // Date and time.
+                            Text(
+                              dateText,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -149,29 +219,43 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(10),
-
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-
-                    decoration: const InputDecoration(
-                      hintText: 'Type a group message...',
-                      border: OutlineInputBorder(),
+          // Input stays above the keyboard and system controls.
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: messageController,
+                      minLines: 1,
+                      maxLines: 4,
+                      keyboardType: TextInputType.multiline,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'Type a group message...',
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-
-                const SizedBox(width: 10),
-
-                IconButton(
-                  onPressed: sendMessage,
-                  icon: const Icon(Icons.send),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: sendMessage,
+                    icon: const Icon(Icons.send),
+                    tooltip: 'Send group message',
+                  ),
+                ],
+              ),
             ),
           ),
         ],
