@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/connection_service.dart';
 import 'chat_screen.dart';
 
 class DiscoverScreen extends StatelessWidget {
@@ -133,7 +134,6 @@ class DiscoverScreen extends StatelessWidget {
                 return sameCity || sameCountry || hasSharedInterest;
               }).toList();
 
-              // No matches
               if (matchingProfiles.isEmpty) {
                 return Center(
                   child: Padding(
@@ -172,7 +172,6 @@ class DiscoverScreen extends StatelessWidget {
                 );
               }
 
-              // Display matching students
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
 
@@ -217,7 +216,6 @@ class DiscoverScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
 
                         children: [
-                          // Name
                           Row(
                             children: [
                               const CircleAvatar(
@@ -241,7 +239,6 @@ class DiscoverScreen extends StatelessWidget {
 
                           const SizedBox(height: 15),
 
-                          // University
                           Text(
                             'University: '
                             '$university',
@@ -257,7 +254,6 @@ class DiscoverScreen extends StatelessWidget {
 
                           const SizedBox(height: 15),
 
-                          // Why they matched
                           const Text(
                             'Matched because:',
                             style: TextStyle(fontWeight: FontWeight.bold),
@@ -290,23 +286,70 @@ class DiscoverScreen extends StatelessWidget {
                             ),
                           const SizedBox(height: 15),
 
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ChatScreen(
-                                      otherUserId: profile.id,
-                                      otherUserName: name.toString(),
-                                    ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.message),
-                              label: const Text('Message'),
-                            ),
+                          Column(
+                            children: [
+                              // Connect button
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    try {
+                                      final created = await ConnectionService()
+                                          .connectToStudent(profile.id);
+
+                                      if (!context.mounted) return;
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            created
+                                                ? 'Connected with ${name.toString()}!'
+                                                : 'You are already connected with ${name.toString()}.',
+                                          ),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      if (!context.mounted) return;
+
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Could not connect: $e',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.person_add_alt_1),
+                                  label: const Text('Connect'),
+                                ),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              // Existing Message button
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatScreen(
+                                          otherUserId: profile.id,
+                                          otherUserName: name.toString(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.message),
+                                  label: const Text('Message'),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

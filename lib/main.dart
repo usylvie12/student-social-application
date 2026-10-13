@@ -2,7 +2,7 @@ import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'screens/profile_screen.dart';
 import 'screens/discover_screen.dart';
-import 'screens/chat_screen.dart';
+
 import 'screens/groups_screen.dart';
 import 'screens/event_screen.dart';
 import 'services/analytics_service.dart';
@@ -19,8 +19,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   await FirebaseAnalytics.instance.logLogin(loginMethod: 'email');
 
@@ -249,8 +247,6 @@ class HomeScreen extends StatelessWidget {
                               ),
                             ),
 
-                            // DELETE BUTTON
-                            // ONLY EVENT CREATOR CAN SEE IT
                             if (FirebaseAuth.instance.currentUser?.uid ==
                                 data['createdBy'])
                               IconButton(
@@ -394,7 +390,7 @@ class HomeScreen extends StatelessWidget {
                             );
                           },
                         ),
-                        // ATTENDANCE BUTTONS
+
                         const SizedBox(height: 15),
 
                         Row(

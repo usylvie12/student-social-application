@@ -32,7 +32,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final message = messageController.text.trim();
     if (message.isEmpty) return;
 
-    // Get the sender's name from Firestore.
     final userDoc = await _firestore
         .collection('users')
         .doc(currentUser.uid)
@@ -45,7 +44,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final conversationId = '${ids[0]}_${ids[1]}';
 
-    // Save the message.
     await _firestore
         .collection('conversations')
         .doc(conversationId)
@@ -133,7 +131,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     final senderId = message['senderId'];
                     final text = message['text'] ?? '';
 
-                    // Name saved with the message.
                     final senderName =
                         message['senderName'] ??
                         (senderId == currentUser.uid
@@ -163,7 +160,6 @@ class _ChatScreenState extends State<ChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Small sender name above the text.
                             Text(
                               senderName.toString(),
                               style: TextStyle(
@@ -174,7 +170,6 @@ class _ChatScreenState extends State<ChatScreen> {
                             ),
                             const SizedBox(height: 4),
 
-                            // Message text.
                             Text(
                               text.toString(),
                               style: TextStyle(
@@ -182,7 +177,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 fontSize: 16,
                               ),
                             ),
-                            // Date and time sent.
+
                             Text(
                               message['createdAt'] is Timestamp
                                   ? (message['createdAt'] as Timestamp)
@@ -206,7 +201,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Message input.
           SafeArea(
             top: false,
             child: Padding(

@@ -31,7 +31,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     if (text.isEmpty) return;
 
     try {
-      // First, look for the name in publicProfiles.
       final publicProfile = await _firestore
           .collection('publicProfiles')
           .doc(user.uid)
@@ -40,7 +39,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       String senderName =
           publicProfile.data()?['name']?.toString().trim() ?? '';
 
-      // If the name is missing, check users.
       if (senderName.isEmpty) {
         final userDoc = await _firestore
             .collection('users')
@@ -50,7 +48,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         senderName = userDoc.data()?['name']?.toString().trim() ?? '';
       }
 
-      // Final fallback.
       if (senderName.isEmpty) {
         senderName = user.email ?? 'Unknown user';
       }
@@ -219,7 +216,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             ),
           ),
 
-          // Input stays above the keyboard and system controls.
           SafeArea(
             top: false,
             child: Padding(
