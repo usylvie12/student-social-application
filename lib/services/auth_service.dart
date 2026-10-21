@@ -6,7 +6,7 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> signOut() async {
-    await FirebaseAuth.instance.signOut();
+    await logout();
   }
 
   Future<User?> register(String email, String password) async {
@@ -30,10 +30,15 @@ class AuthService {
         password: password,
       );
 
-      // Record successful login in Firebase Analytics
-      await AnalyticsService.logLogin();
+      final user = result.user;
 
-      return result.user;
+      if (user != null) {
+        await AnalyticsService.setUserId(user.uid);
+
+        await AnalyticsService.logLogin();
+      }
+
+      return user;
     } catch (e) {
       print(e);
       return null;
@@ -41,6 +46,8 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    await AnalyticsService.clearUserId();
+
     await _auth.signOut();
   }
 }
