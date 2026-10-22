@@ -352,11 +352,11 @@ class HomeScreen extends StatelessWidget {
                           builder: (context, attendanceSnapshot) {
                             if (attendanceSnapshot.connectionState ==
                                 ConnectionState.waiting) {
-                              return const Text('Loading attendance...');
+                              return const Text('');
                             }
 
                             if (attendanceSnapshot.hasError) {
-                              return const Text('Unable to load attendance.');
+                              return const Text('');
                             }
 
                             final attendingCount =

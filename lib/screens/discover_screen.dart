@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'full_profile_screen.dart';
 import '../services/connection_service.dart';
 import 'chat_screen.dart';
 
@@ -286,70 +287,129 @@ class DiscoverScreen extends StatelessWidget {
                             ),
                           const SizedBox(height: 15),
 
-                          Column(
-                            children: [
-                              // Connect button
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    try {
-                                      final created = await ConnectionService()
-                                          .connectToStudent(profile.id);
+                          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: (() {
+                              final ids = [currentUser.uid, profile.id]..sort();
+                              final connectionId = '${ids[0]}_${ids[1]}';
 
-                                      if (!context.mounted) return;
+                              return FirebaseFirestore.instance
+                                  .collection('connections')
+                                  .doc(connectionId)
+                                  .snapshots();
+                            })(),
+                            builder: (context, connectionSnapshot) {
+                              final connectionData = connectionSnapshot.data
+                                  ?.data();
 
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            created
-                                                ? 'Connected with ${name.toString()}!'
-                                                : 'You are already connected with ${name.toString()}.',
-                                          ),
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      if (!context.mounted) return;
+                              final isConnected =
+                                  connectionSnapshot.hasData &&
+                                  connectionSnapshot.data!.exists &&
+                                  connectionData?['status'] == 'connected' &&
+                                  connectionData?['user1Id'] ==
+                                      ([currentUser.uid, profile.id]
+                                        ..sort())[0] &&
+                                  connectionData?['user2Id'] ==
+                                      ([currentUser.uid, profile.id]
+                                        ..sort())[1];
 
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Could not connect: $e',
-                                              ),
+                              return Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: isConnected
+                                          ? null
+                                          : () async {
+                                              try {
+                                                final created =
+                                                    await ConnectionService()
+                                                        .connectToStudent(
+                                                          profile.id,
+                                                        );
+
+                                                if (!context.mounted) return;
+
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      created
+                                                          ? 'Connected with ${name.toString()}!'
+                                                          : 'You are already connected with ${name.toString()}.',
+                                                    ),
+                                                  ),
+                                                );
+                                              } catch (e) {
+                                                if (!context.mounted) return;
+
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Could not connect: $e',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                      icon: Icon(
+                                        isConnected
+                                            ? Icons.check_circle
+                                            : Icons.person_add_alt_1,
+                                      ),
+                                      label: Text(
+                                        isConnected ? 'Connected' : 'Connect',
+                                      ),
+                                    ),
+                                  ),
+
+                                  if (isConnected) ...[
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  FullProfileScreen(
+                                                    userId: profile.id,
+                                                  ),
                                             ),
                                           );
-                                    }
-                                  },
-                                  icon: const Icon(Icons.person_add_alt_1),
-                                  label: const Text('Connect'),
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
-
-                              // Existing Message button
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ChatScreen(
-                                          otherUserId: profile.id,
-                                          otherUserName: name.toString(),
-                                        ),
+                                        },
+                                        icon: const Icon(Icons.person),
+                                        label: const Text('View Profile'),
                                       ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.message),
-                                  label: const Text('Message'),
-                                ),
-                              ),
-                            ],
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 8),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ChatScreen(
+                                              otherUserId: profile.id,
+                                              otherUserName: name.toString(),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.message),
+                                      label: const Text('Message'),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),

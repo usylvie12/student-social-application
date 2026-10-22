@@ -195,18 +195,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> saveProfile() async {
-    final User? user = _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Please log in first.')));
       return;
     }
+
+    if (saving) return;
 
     setState(() {
       saving = true;
     });
 
     try {
-      await _firestore.collection('users').doc(user.uid).update({
+      final profileData = <String, dynamic>{
         'name': nameController.text.trim(),
         'university': universityController.text.trim(),
         'city': cityController.text.trim(),
@@ -214,28 +220,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'preferredLanguage': preferredLanguage,
         'languages': languages,
         'interests': interests,
-      });
+      };
 
-      await AnalyticsService.logProfileCompleted();
+      final batch = _firestore.batch();
+
+      batch.set(
+        _firestore.collection('users').doc(user.uid),
+        profileData,
+        SetOptions(merge: true),
+      );
+
+      batch.set(
+        _firestore.collection('publicProfiles').doc(user.uid),
+        profileData,
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+
+      try {
+        await AnalyticsService.logProfileCompleted();
+      } catch (e) {
+        debugPrint('Analytics logging error: $e');
+      }
 
       if (!mounted) return;
-
-      setState(() {
-        saving = false;
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully')),
+        const SnackBar(content: Text('Profile updated successfully!')),
       );
     } catch (e) {
+      debugPrint('Profile saving error: $e');
+
       if (!mounted) return;
 
-      setState(() {
-        saving = false;
-      });
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+          .showSnackBar(SnackBar(content: Text('Could not save profile: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          saving = false;
+        });
+      }
     }
   }
 

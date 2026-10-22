@@ -49,4 +49,31 @@ class ConnectionService {
 
     return created;
   }
+
+  Future<bool> areConnected(String otherUserId) async {
+    final currentUser = _auth.currentUser;
+
+    if (currentUser == null || currentUser.uid == otherUserId) {
+      return false;
+    }
+
+    final ids = [currentUser.uid, otherUserId]..sort();
+    final connectionId = '${ids[0]}_${ids[1]}';
+
+    final connectionDoc = await _firestore
+        .collection('connections')
+        .doc(connectionId)
+        .get();
+
+    if (!connectionDoc.exists) {
+      return false;
+    }
+
+    final data = connectionDoc.data();
+
+    return data != null &&
+        data['status'] == 'connected' &&
+        data['user1Id'] == ids[0] &&
+        data['user2Id'] == ids[1];
+  }
 }
